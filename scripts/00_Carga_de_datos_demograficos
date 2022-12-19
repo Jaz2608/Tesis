@@ -1,0 +1,74 @@
+pacman::p_load(readr,magrittr,dplyr,tidyr,purrr,tibble,
+               ggplot2,lubridate,leaflet,rgdal,sf)
+
+input <- ("G:/Mi unidad/Tesis/")
+
+# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+# 0.0  Se cargan los poligonos de los municipios ======
+# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+# Directorio donde se encuentran los poligonos de los municipios
+# Marco Geoestadístico. Censo de Población y Vivienda 2020
+# Se descargó de: 
+#https://www.inegi.org.mx/app/biblioteca/ficha.html?upc=889463807469
+
+setwd(paste0(input,'/data/poligonos_inegi/conjunto_de_datos'))
+
+
+# Poligonos de todos los municipios del pasis
+datos_espaciales <- readOGR("00mun.shp",
+                            verbose = FALSE,
+                            encoding = "UTF-8")
+
+
+dim(datos_espaciales@data) # son 2469 municipios lo cual coincide con los
+# datos en data_tasas
+
+# Se transformar los datos al formato WGS84
+datos_espaciales %<>% spTransform(CRS("+proj=longlat +datum=WGS84"))
+
+
+# Se grafica el mapa de la republica dividido por municipios
+# window()
+# plot(datos_espaciales, main = "Mapa de la república mexicana",
+#      sub = "por municipios",
+#      xlab = "Longitud", ylab = "Latitud")
+
+
+# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+# 0.1  Se cargan  las distancias ======
+# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+# Se calculan las matrices D0 y D1 por distancias y por vecinos
+
+# Ubicando los centroides y calculando las distancias
+# Se convierte a un objeto espacial 
+datos_espaciales.sf <- sf::st_as_sf(datos_espaciales)
+
+#Calcula los centroides
+Centroids <- st_centroid(datos_espaciales.sf)
+# plot(Centroids)
+# plot(datos_espaciales.sf)
+
+# guardo los Centroides en un csv
+# setwd(input)
+# write.csv(Centroids,"centroides.csv")
+
+# Calcula la distancia hacia los crentroides
+D1.geo <- st_distance(Centroids) # Matriz de distancias D1
+D1.geo <- as.dist(D1.geo)
+
+# La función construye una lista de vecinos basandose en las regiones
+# con limites contiguos, esto es que compartan al menos un punto limite
+list.nb <- spdep::poly2nb(datos_espaciales)
+
+# Se contrsuye la matriz de adyacencias
+A <- spdep::nb2mat(list.nb, style="B")
+#Se pone unos en la diagonal
+diag(A) <- 1
+
+D1.dis <- 1-A # esto se hace porque se esta calculando la matriz de distancias
+D1.dis <- as.dist(D1.dis)
+
+setwd(input)
+save.image("00_Carga_de_datos_demograficos.RData")
